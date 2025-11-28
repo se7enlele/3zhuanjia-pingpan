@@ -70,7 +70,7 @@ export const generateProductCritiqueStream = async (
 
   try {
     const responseStream = await ai.models.generateContentStream({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-pro-preview',
       contents: {
         role: 'user',
         parts: parts
