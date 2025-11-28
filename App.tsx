@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   AppState, 
-  ProductContext 
+  ProductContext,
+  ApiConfig
 } from './types';
 import { 
   CURRENT_STATE_OPTIONS, 
@@ -12,7 +13,8 @@ import { Button, Input, Select, Textarea, Card } from './components/ui';
 import { ImageUploader } from './components/ImageUploader';
 import { LoadingScreen } from './components/LoadingScreen';
 import { ReportView } from './components/ReportView';
-import { LayoutGrid, Sparkles, ChevronRight } from 'lucide-react';
+import { SettingsModal } from './components/SettingsModal';
+import { LayoutGrid, Sparkles, ChevronRight, Settings } from 'lucide-react';
 
 const INITIAL_CONTEXT: ProductContext = {
   targetAudience: '',
@@ -22,11 +24,38 @@ const INITIAL_CONTEXT: ProductContext = {
   images: []
 };
 
+const DEFAULT_API_CONFIG: ApiConfig = {
+  baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+  apiKey: '', // User must input this
+  model: 'gemini-1.5-flash-latest'
+};
+
 function App() {
   const [appState, setAppState] = useState<AppState>(AppState.INPUT);
   const [context, setContext] = useState<ProductContext>(INITIAL_CONTEXT);
   const [reportText, setReportText] = useState('');
   const [error, setError] = useState<string | null>(null);
+  
+  // Settings State
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [apiConfig, setApiConfig] = useState<ApiConfig>(DEFAULT_API_CONFIG);
+
+  // Load settings from local storage on mount
+  useEffect(() => {
+    const savedConfig = localStorage.getItem('pc_ai_config');
+    if (savedConfig) {
+      try {
+        setApiConfig(JSON.parse(savedConfig));
+      } catch (e) {
+        console.error("Failed to parse saved config", e);
+      }
+    }
+  }, []);
+
+  const handleSaveSettings = (newConfig: ApiConfig) => {
+    setApiConfig(newConfig);
+    localStorage.setItem('pc_ai_config', JSON.stringify(newConfig));
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { id, value } = e.target;
@@ -43,18 +72,24 @@ function App() {
       return;
     }
 
+    if (!apiConfig.apiKey) {
+      setIsSettingsOpen(true);
+      alert("Please configure your API Key first.");
+      return;
+    }
+
     setAppState(AppState.PROCESSING);
     setReportText('');
     setError(null);
 
     try {
-      await generateProductCritiqueStream(context, (chunk) => {
+      await generateProductCritiqueStream(context, apiConfig, (chunk) => {
         setAppState(AppState.REPORT);
         setReportText(prev => prev + chunk);
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError("Failed to generate report. Please check your API key or connection.");
+      setError(`Failed to generate report: ${err.message || 'Unknown error'}. Check Settings.`);
       setAppState(AppState.INPUT);
     }
   };
@@ -81,10 +116,29 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-8">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-8 relative">
       
+      {/* Settings Button (Top Right) */}
+      <div className="absolute top-4 right-4 sm:top-8 sm:right-8 z-10">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={() => setIsSettingsOpen(true)}
+          className="text-slate-400 hover:text-slate-600"
+        >
+          <Settings size={20} />
+        </Button>
+      </div>
+
+      <SettingsModal 
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        config={apiConfig}
+        onSave={handleSaveSettings}
+      />
+
       {/* Header */}
-      <header className="mb-8 text-center space-y-2 max-w-2xl">
+      <header className="mb-8 text-center space-y-2 max-w-2xl mt-8 sm:mt-0">
         <div className="inline-flex items-center justify-center p-2 bg-white rounded-xl shadow-sm border border-slate-200 mb-4">
           <LayoutGrid className="text-brand-600 mr-2" size={20} />
           <span className="font-bold text-slate-900 tracking-tight">Product Council AI</span>
@@ -98,7 +152,7 @@ function App() {
       </header>
 
       {/* Main Form */}
-      <main className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <main className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-12 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-12">
         
         {/* Left Column: Context */}
         <div className="space-y-6">
@@ -168,15 +222,20 @@ function App() {
                 Run Expert Analysis
                 <ChevronRight size={18} className="ml-1 opacity-60" />
               </Button>
-              {error && <p className="text-red-500 text-sm text-center mt-3">{error}</p>}
+              {error && (
+                <div className="mt-3 text-red-500 text-sm text-center bg-red-50 p-2 rounded-md border border-red-100">
+                  {error} 
+                  <button onClick={() => setIsSettingsOpen(true)} className="underline ml-1 font-medium">Check Settings</button>
+                </div>
+              )}
             </div>
           </Card>
         </div>
 
       </main>
 
-      <footer className="mt-16 text-slate-400 text-sm text-center">
-        <p>Powered by Google Gemini 2.5 Flash & Vercel</p>
+      <footer className="fixed bottom-0 w-full py-2 bg-slate-50/80 backdrop-blur-sm border-t border-slate-200 text-slate-400 text-xs text-center z-0">
+        <p>Configured API: {apiConfig.baseUrl ? new URL(apiConfig.baseUrl).hostname : 'None'} • Model: {apiConfig.model}</p>
       </footer>
     </div>
   );

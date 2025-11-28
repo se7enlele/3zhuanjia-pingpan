@@ -6,6 +6,12 @@ export enum AppState {
   REPORT = 'REPORT',
 }
 
+export interface ApiConfig {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+}
+
 export interface ProductContext {
   targetAudience: string;
   currentState: string;
