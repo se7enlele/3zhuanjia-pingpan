@@ -9,8 +9,8 @@ export default defineConfig(({ mode }) => {
   
   // On Vercel, process.env is populated with system variables.
   // Locally, loadEnv populates from .env files.
-  // We use a fallback strategy.
-  const apiKey = env.API_KEY || process.env.API_KEY;
+  // We use a fallback strategy, defaulting to empty string to prevent JSON.stringify crashes.
+  const apiKey = env.API_KEY || process.env.API_KEY || '';
 
   return {
     plugins: [react()],
